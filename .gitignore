@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.env
+venv/
+env/
+ENV/
+
+# Database & Storage
+*.db
+*.sqlite
+uploads/*
+!uploads/.gitkeep
+
+# Binaries & Large Executables
+ffmpeg.exe
+ffmpeg
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
