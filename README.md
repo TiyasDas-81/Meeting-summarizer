@@ -1,241 +1,345 @@
 # 🎙️ AI Meeting Summarizer
 
-A production-ready, executive AI Meeting Summarizer designed to transcribe audio recordings, generate concise meeting summaries, identify key decisions, and extract actionable tasks with assigned owners and deadlines.
+An automated AI application designed to transcribe meeting audio recordings, generate concise executive summaries, extract key discussion points and decisions, and organize actionable tasks with assigned owners, deadlines, and priorities.
 
 ---
 
-## 📌 Problem Statement & Objective
+## 📌 Problem Statement
 
-In fast-paced organizations, valuable decisions and action items discussed during meetings are often forgotten or poorly documented. Manual meeting minutes are slow and error-prone.
+In modern team workflows, key decisions and action items discussed during meetings are often lost or buried in lengthy audio recordings. Manual meeting documentation is time-consuming, inconsistent, and prone to human error.
 
-The **AI Meeting Summarizer** solves this by automating the complete pipeline:
+- **Lengthy Recordings**: Reviewing hours of recorded calls to find a single detail is inefficient.
+- **Manual Minute Taking**: Note-takers often miss critical discussion context while typing.
+- **Lost Action Items**: Tasks discussed informally often lack clear ownership or deadlines.
+- **Lack of Structured Follow-up**: Unstructured meeting notes make tracking project progress difficult.
+
+### How AI Meeting Summarizer Solves This
+
+**AI Meeting Summarizer** converts unstructured audio conversations into structured, actionable intelligence automatically. By pairing local speech-to-text transcription with structured LLM analysis, the system transforms meeting audio into executive summaries, key decisions, and concrete task tables available instantly via an interactive web dashboard.
+
+---
+
+## 🎯 Objective
+
+> Transcribe meeting audio and transform the conversation into structured, action-oriented insights.
+
+The platform processes raw audio files to generate:
+- **Full Text Transcripts** with high-accuracy speech recognition.
+- **Executive Summaries** summarizing the meeting's objective and core outcomes.
+- **Key Discussion Points** categorized logically.
+- **Key Decisions** agreed upon by participants.
+- **Action Items** with explicit tasks, owners, deadlines, and priority rankings.
+
+---
+
+## 🏗️ Architecture & Data Pipeline
+
+```text
+Audio Recording (.mp3, .wav, .m4a, etc.)
+                   │
+                   ▼
+       FastAPI Backend API Layer
+                   │
+                   ▼
+  Whisper ASR (Local / OpenAI API / Mock)
+                   │
+                   ▼
+          Full Text Transcript
+                   │
+                   ▼
+ LLM Analysis Engine (Gemini / OpenAI / Mock)
+                   │
+                   ▼
+┌──────────────────────────────────────────┐
+│ Executive Summary                        │
+│ Key Discussion Points                    │
+│ Key Decisions                            │
+│ Action Items (Task, Owner, Deadline, Prio)│
+└──────────────────────────────────────────┘
+                   │
+                   ▼
+         SQLite Database Storage
+                   │
+                   ▼
+   Streamlit Executive Web Dashboard
 ```
-Audio File → ASR Transcription → Plain Text → LLM Analysis → Structured Insights → SQLite Database → Streamlit UI
-```
+
+### Component Overview
+
+1. **FastAPI Backend (`backend/`)**: Serves RESTful API endpoints for audio ingestion, asynchronous pipeline processing, meeting retrieval, audio streaming, and record deletion.
+2. **Speech-to-Text Engine (`backend/services/transcription.py`)**: Uses OpenAI Whisper running locally or via API to convert speech audio into clear text transcripts.
+3. **LLM Summarization Engine (`backend/services/summarization.py`)**: Prompts Google Gemini or OpenAI LLMs with strict JSON schema instructions to extract structured insights and handle long transcript chunking.
+4. **Database & Storage (`backend/models/meeting.py`, `backend/database/db.py`)**: Persists meeting records, transcripts, summaries, and action item metadata cleanly in SQLite.
+5. **Streamlit Web Dashboard (`frontend/app.py`)**: Offers an executive UI to upload recordings, inspect recent summaries, listen to audio playback, and download transcripts.
+
+---
+
+## 🤖 AI Stack & Models
+
+- **Speech-to-Text (ASR)**:
+  - Primary Local Provider: **OpenAI Whisper** (`whisper_local` using model size `tiny`/`base`).
+  - API Fallback Provider: **OpenAI Whisper API** (`whisper_api` using model `whisper-1`).
+  - Development Provider: **Mock ASR** (`mock` for zero-cost offline development).
+- **Large Language Model (LLM)**:
+  - Primary Gemini Model: **Google Gemini** (`gemini-3.6-flash`).
+  - Alternative Provider: **OpenAI** (`gpt-4o-mini`).
+  - Offline Provider: **Mock LLM** (`mock` for rule-based testing without API keys).
 
 ---
 
 ## 🌟 Key Features
 
-- **Multi-Format Audio Upload**: Supports `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg`, `.webm`, `.aac` (up to 50MB).
-- **Whisper ASR Integration**: Uses OpenAI Whisper API (`whisper_api`) or local Whisper (`whisper_local`) for speech-to-text.
-- **LLM Executive Analysis**: Employs OpenAI GPT-4o or Google Gemini with prompt engineering to output structured JSON:
-  - 📌 **Executive Summary**: Concise overview of meeting objectives and outcomes.
-  - 🔑 **Key Discussion Points**: Bulleted discussion topics.
-  - 🎯 **Decisions Made**: Explicitly agreed decisions.
-  - ✅ **Action Items**: Structured tasks with `task`, `owner` (defaults to `"Unassigned"`), `deadline` (defaults to `"TBD"`), and `priority` (`High`/`Medium`/`Low`).
-- **Long Transcript Chunking**: Handles long meeting transcripts by chunking text and synthesizing summaries before final analysis.
-- **SQLite Database Persistence**: Stores meeting records, transcripts, summaries, and action item metadata.
-- **Streamlit Executive Dashboard**: Interactive UI with audio playback, meeting history, status badges, and transcript downloads.
-- **Offline/Mock Dev Mode**: Configurable mock mode for development and testing without API fees.
-- **Comprehensive Automated Tests**: Pytest test suite covering API endpoints, DB operations, audio validation, chunking, and JSON parsing.
+- 📤 **Multi-Format Audio Upload**: Supports `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.webm`, and `.aac` files (up to 50MB).
+- 🎙️ **Local Speech Recognition**: High-accuracy local speech-to-text using OpenAI Whisper without third-party API dependencies for audio processing.
+- 🧠 **Structured Executive Insights**: Generates structured summaries, discussion points, team decisions, and task lists.
+- 👤 **Owner & Deadline Detection**: Extracts task assignees and target deadlines directly from conversational context.
+- 🏷️ **Priority Classification**: Categorizes tasks into `High`, `Medium`, or `Low` priority.
+- 📜 **Long Transcript Chunking**: Automatically segments long transcripts (>12,000 characters) into overlapping chunks to preserve context across extended meetings.
+- 🔊 **Audio Recording Playback**: Stream and replay stored meeting audio directly from the dashboard via a dedicated media streaming endpoint (`/api/meetings/{id}/audio`).
+- 🔍 **Meeting History & Search**: Browse, filter, and inspect past meetings by keyword or date.
+- 📥 **Transcript Export**: Download complete meeting transcripts as plain text files (`.txt`).
+- 🛡️ **Structured Output Validation**: Enforces JSON schema compliance and validates LLM responses via Pydantic models.
+- ⚙️ **Configurable Pipeline**: Easily toggle between Gemini, OpenAI, or offline Mock modes using `.env` settings.
 
 ---
 
-## 🏗️ Architecture & Data Flow
+## 🔄 Demo Workflow
 
-```
-                                  +-----------------------+
-                                  |   Audio File Upload   |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |  FastAPI Backend API  |
-                                  | (/api/meetings/upload)|
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |   Audio Validation    |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |   Whisper ASR Engine  |
-                                  | (whisper_local / API) |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |  Full Text Transcript |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |   LLM Summarizer      |
-                                  | (JSON Schema Prompt)  |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |  SQLite DB & Storage  |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |  Streamlit Dashboard  |
-                                  +-----------------------+
-```
+1. **Upload Audio**: User uploads a meeting recording (`.mp3`, `.wav`, etc.) via the Streamlit interface.
+2. **Validation & Ingestion**: FastAPI validates file extension, file size, and stores the audio binary in `./uploads`.
+3. **Speech Transcription**: Whisper ASR transcribes the audio into a complete plain text transcript.
+4. **LLM Insight Analysis**: The transcript is passed to Google Gemini with strict prompt constraints.
+5. **JSON Schema Extraction**: Summary, key points, decisions, and action items are structured and validated.
+6. **Database Persistence**: The meeting record and JSON payloads are saved to SQLite (`meetings.db`).
+7. **Executive Dashboard**: User explores executive summaries, decisions, and action item cards.
+8. **Audio Replay & Download**: User listens to the original audio recording or downloads the raw transcript.
+
+---
+
+## 📋 Action Item Structure
+
+Extracts concrete, actionable tasks from meeting conversations into structured records:
+
+*(Example Representation)*
+
+| Task Description | Owner | Deadline | Priority |
+| :--- | :--- | :--- | :--- |
+| Finalize API integration documentation | Sarah | Monday 5 PM | High |
+| Lead QA testing and handle App Store submission | David | Wednesday, Aug 26 | High |
+| Prepare marketing materials for beta launch | Priyanka | August 28th | Medium |
+| Follow up on cloud infrastructure migration | Unassigned | TBD | Low |
+
+> 💡 **Note**: The system avoids inventing missing owners or deadlines. If a task owner or deadline is not explicitly stated in the conversation, standard fallback values (`Unassigned` / `TBD`) are applied automatically.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Backend**: Python 3.11, FastAPI, Uvicorn, SQLAlchemy, Pydantic v2
-- **Frontend**: Streamlit
-- **ASR (Speech-to-Text)**: Local OpenAI Whisper (`openai-whisper`) / OpenAI Whisper API (`whisper-1`)
-- **LLM (Summarization)**: OpenAI GPT-4o-mini / Google Gemini 1.5 Flash
-- **Database**: SQLite (`meetings.db`)
-- **Testing**: Pytest, FastAPI TestClient
+| Component Layer | Technology Used |
+| :--- | :--- |
+| **Frontend UI** | Streamlit |
+| **Backend Framework** | FastAPI (Uvicorn, ASGI) |
+| **ASR (Speech-to-Text)** | OpenAI Whisper (Local / API) |
+| **LLM (Summarization)** | Google Gemini (`gemini-3.6-flash`) / OpenAI (`gpt-4o-mini`) |
+| **Database** | SQLite & SQLAlchemy ORM |
+| **Data Validation** | Pydantic v2 |
+| **Language & Testing** | Python 3.10+, Pytest |
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-Meeting summarizer/
+Meeting-summarizer/
 ├── backend/
 │   ├── api/
-│   │   └── meetings.py        # FastAPI API routes (upload, list, get, delete)
+│   │   └── meetings.py            # FastAPI REST endpoints (upload, list, detail, audio, delete)
 │   ├── database/
-│   │   └── db.py              # SQLAlchemy engine & session setup
+│   │   └── db.py                  # SQLAlchemy engine & session manager
 │   ├── models/
-│   │   └── meeting.py         # Meeting database model & JSON serializable properties
+│   │   └── meeting.py             # Meeting database model & JSON properties
 │   ├── schemas/
-│   │   └── meeting.py         # Pydantic schemas & input validation
+│   │   └── meeting.py             # Pydantic schemas & output validation
 │   ├── services/
-│   │   ├── transcription.py   # Audio validation & Whisper ASR service
-│   │   ├── summarization.py   # LLM prompt, chunking & JSON extraction
-│   │   └── meeting_processor.py # End-to-end processing pipeline orchestrator
-│   ├── config.py              # Environment configuration loader
-│   └── main.py                # FastAPI entry point & health endpoint
+│   │   ├── transcription.py       # Audio validation & Whisper ASR service
+│   │   ├── summarization.py       # LLM prompt, chunking & JSON parser
+│   │   └── meeting_processor.py   # End-to-end processing pipeline orchestrator
+│   ├── config.py                  # Pydantic settings & environment configuration
+│   └── main.py                    # FastAPI app entry point & health check endpoint
 ├── frontend/
-│   └── app.py                 # Streamlit UI dashboard
+│   └── app.py                     # Streamlit executive dashboard UI
 ├── tests/
-│   ├── test_api.py            # API endpoint unit tests
-│   ├── test_db.py             # Database CRUD tests
-│   ├── test_summarization.py # LLM parser, schema & chunking tests
-│   └── test_transcription.py  # Audio validation & ASR tests
-├── uploads/                   # Audio upload storage directory
-├── meetings.db                # SQLite database file
-├── requirements.txt           # Python dependencies
-├── .env                       # Active environment settings
-├── .env.example               # Example configuration template
-└── README.md                  # Project documentation
+│   ├── test_api.py                # REST API integration tests
+│   ├── test_db.py                 # SQLite Database CRUD unit tests
+│   ├── test_summarization.py     # LLM JSON parser, fallback & chunking tests
+│   └── test_transcription.py      # Audio format validation & ASR tests
+├── scripts/
+│   ├── test_recordings.py         # End-to-end recording pipeline verification suite
+│   ├── test_ui_flow.py            # UI data-flow & state regression verification suite
+│   └── cleanup_duplicates.py      # Utility maintenance scripts
+├── uploads/                       # Storage for uploaded audio files (Git ignored)
+├── test/                          # Sample test recordings directory (Git ignored)
+├── .env.example                   # Environment configuration template
+├── .gitignore                     # Git exclusion rules
+├── requirements.txt               # Dependencies list
+└── README.md                      # Project documentation
 ```
 
 ---
 
 ## 🚀 Installation & Setup
 
-### 1. Prerequisites
-- Python 3.10+ installed
-- FFmpeg (included via project root or `imageio-ffmpeg`)
-
-### 2. Installation
+### 1. Clone the Repository
 ```powershell
-cd "C:\Users\Asus\Desktop\Meeting summarizer"
+git clone https://github.com/TiyasDas-81/Meeting-summarizer.git
+cd Meeting-summarizer
+```
+
+### 2. Create Virtual Environment
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+### 3. Install Dependencies
+```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Environment Configuration
-Copy `.env.example` to `.env`:
+### 4. Configure Environment Variables
+Copy `.env.example` to create your active `.env` file:
 ```powershell
 cp .env.example .env
 ```
 
-Example `.env` configuration for **Local Whisper ASR + Real LLM**:
+Edit `.env` to configure your API keys and providers:
 ```env
-# LLM API Settings (Options: openai, gemini, or mock)
-LLM_PROVIDER=openai
+# LLM Settings (Options: gemini, openai, or mock)
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-3.6-flash
+
+# Optional OpenAI LLM configuration
 OPENAI_API_KEY=your_openai_api_key_here
 LLM_MODEL=gpt-4o-mini
 
 # ASR Settings (Options: whisper_local, whisper_api, or mock)
 ASR_PROVIDER=whisper_local
-WHISPER_MODEL=tiny
+WHISPER_MODEL=base
 
-# Database & Storage Settings
+# Storage & Database
 DATABASE_URL=sqlite:///./meetings.db
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE_MB=50
 ```
 
-> 💡 **Note**: For local ASR (`ASR_PROVIDER=whisper_local`), no OpenAI API key is needed for speech recognition.
+> 🔒 **Security Notice**: Never commit `.env` or real API keys to version control. `.env` is listed in `.gitignore`.
 
 ---
 
 ## 🏃 Running the Application
 
-### 1. Start FastAPI Backend
+### 1. Start Backend Server (FastAPI)
+Open a terminal in the project root and run:
 ```powershell
-uvicorn backend.main:app --reload --port 8000
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
-- API Interactive Swagger Docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Health Check Endpoint: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+- **API Documentation (Swagger UI)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Health Check Endpoint**: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-### 2. Start Streamlit Frontend
+### 2. Start Frontend Interface (Streamlit)
+Open a second terminal in the project root and run:
 ```powershell
-streamlit run frontend/app.py
+python -m streamlit run frontend/app.py --server.port 8501
 ```
-- Streamlit Dashboard URL: [http://localhost:8501](http://localhost:8501)
+- **Streamlit Web Application**: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 📡 API Endpoints
+## 📡 API Reference
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | Service health status & active configuration |
-| `POST` | `/api/meetings/upload` | Upload audio recording & execute ASR + LLM processing |
+| `GET` | `/api/health` | Health check endpoint returning active ASR and LLM configurations |
+| `POST` | `/api/meetings/upload` | Upload audio file, execute Whisper ASR and LLM analysis, save to DB |
 | `GET` | `/api/meetings` | List all processed meetings (newest first) |
-| `GET` | `/api/meetings/{id}` | Get full details & structured analysis for a meeting |
-| `GET` | `/api/meetings/{id}/transcript` | Get raw transcript text |
-| `DELETE` | `/api/meetings/{id}` | Delete meeting record & associated audio file |
+| `GET` | `/api/meetings/{id}` | Retrieve complete details, summary, key points, and action items |
+| `GET` | `/api/meetings/{id}/transcript` | Retrieve raw transcript text for a meeting |
+| `GET` | `/api/meetings/{id}/audio` | Stream original audio recording file |
+| `DELETE` | `/api/meetings/{id}` | Delete meeting record and its underlying audio file |
 
 ---
 
-## 🧪 Running Automated Tests
+## 🔊 Audio Playback Integration
 
-Run the full Pytest test suite:
+The application includes native audio streaming capability. Stored audio recordings can be played back directly from the Streamlit frontend.
+
+- **Endpoint**: `GET /api/meetings/{meeting_id}/audio`
+- **Behavior**: Streams the original binary file with the correct MIME header (`audio/mpeg`, `audio/wav`, `audio/mp4`, etc.), allowing inline playback without loading entire audio files into client memory.
+
+---
+
+## 🧪 Testing & Verification
+
+The repository features comprehensive automated unit, integration, and data-flow verification suites.
+
+### Run Pytest Suite
 ```powershell
 python -m pytest tests/ -v
 ```
+*(Runs 17 unit and API integration tests covering endpoints, database CRUD, JSON parsing, and audio validation.)*
 
-Output:
-```text
-tests/test_api.py::test_health_check PASSED
-tests/test_api.py::test_upload_meeting_success PASSED
-tests/test_api.py::test_upload_unsupported_file_format PASSED
-tests/test_api.py::test_upload_empty_file PASSED
-tests/test_api.py::test_list_and_get_meeting PASSED
-tests/test_db.py::test_meeting_orm_model_crud PASSED
-tests/test_summarization.py::test_parse_json_from_llm_response_clean PASSED
-tests/test_summarization.py::test_parse_json_from_llm_response_markdown_wrapper PASSED
-tests/test_summarization.py::test_analyze_transcript_empty PASSED
-tests/test_summarization.py::test_analyze_transcript_mock PASSED
-tests/test_summarization.py::test_chunk_transcript PASSED
-tests/test_summarization.py::test_action_item_schema_null_handling PASSED
-tests/test_transcription.py::test_validate_audio_file_non_existent PASSED
-tests/test_transcription.py::test_validate_audio_file_unsupported_format PASSED
-tests/test_transcription.py::test_validate_audio_file_empty PASSED
-tests/test_transcription.py::test_transcribe_audio_mock PASSED
-
-============================= 16 passed in 1.12s ==============================
+### Run Recording Pipeline Test Suite
+```powershell
+python scripts/test_recordings.py
 ```
+*(Verifies end-to-end processing across audio samples and checks database integrity.)*
+
+### Run UI Data-Flow Regression Test
+```powershell
+python scripts/test_ui_flow.py
+```
+*(Executes an 8-phase automated verification of UI state switching, audio playback endpoints, and component keys.)*
 
 ---
 
-## 📝 Limitations
+## 🖼️ Application Preview
 
-- Speaker Diarization (speaker identification like Speaker 1 / Speaker 2) is disabled by design.
-- Audio file uploads are capped at 50MB by default (configurable in `.env`).
+> Screenshots can be added here for the final submission.
+
+---
+
+## 🧠 LLM Prompt & Anti-Hallucination Design
+
+The summarization service uses structured prompt constraints to maintain data integrity:
+
+1. **Strict JSON Output**: The model is mandated to return valid JSON conforming to the `MeetingAnalysisSchema`.
+2. **Decision vs. Discussion Separation**: Explicitly agreed decisions are separated from general conversational topics.
+3. **No Hallucination Rules**: If an owner or deadline is not mentioned in the transcript, the model is strictly instructed to fill `"Unassigned"` or `"TBD"` rather than inferring imaginary people or dates.
+4. **Markdown Tag Cleaners & Regex Fallback**: A resilient parser strips markdown syntax wrappers (```json) and uses regex fallbacks if LLM responses contain surrounding prose.
+
+---
+
+## ⚠️ Current Limitations
+
+- **Processing Speed**: Local Whisper model execution depends on client CPU/GPU capabilities.
+- **API Key Requirement**: Production LLM features require a valid Google Gemini or OpenAI API key.
+- **Deployment Scope**: Designed primarily as a local/demo application.
+- **Concurrency**: SQLite database is optimized for local single-node deployments.
 
 ---
 
 ## 🔮 Future Enhancements
 
-1. **Speaker Diarization**: Integrate PyAnnote.audio for speaker separation.
-2. **Export Options**: Export meeting summary to PDF, Word, or Notion.
-3. **Calendar & Email Integration**: Automatically send action items via Slack / Email webhooks.
+- 👥 **Speaker Diarization**: Integrate `pyannote.audio` for automatic speaker identification (e.g., Speaker A / Speaker B).
+- 🌐 **Multilingual Support**: Support multi-language meeting transcription and auto-translation.
+- 📅 **Calendar & Workspace Integration**: Auto-sync action items to Google Calendar, Jira, or Trello.
+- 📧 **Automated Notifications**: Send meeting digests via Email or Slack webhooks upon completion.
+- 🔒 **User Authentication**: Multi-tenant access controls and secure user logins.
+- ☁️ **Cloud Storage Integration**: Store meeting recordings in AWS S3 or Google Cloud Storage.
+
+---
+
+## 🏆 Why This Project?
+
+**AI Meeting Summarizer** solves a universal workplace problem: turning unstructured meeting audio into structured accountability. By unifying local speech recognition, structured LLM extraction, resilient data storage, and a user-friendly executive dashboard, it turns hours of meeting audio into actionable productivity in seconds.
