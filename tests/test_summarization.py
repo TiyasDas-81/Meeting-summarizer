@@ -17,7 +17,8 @@ def test_analyze_transcript_empty():
     with pytest.raises(ValueError, match="empty transcript"):
         analyze_transcript("")
 
-def test_analyze_transcript_mock():
+def test_analyze_transcript_mock(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
     analysis = analyze_transcript("Alice: Let's launch the product on Monday.")
     assert isinstance(analysis, MeetingAnalysisSchema)
     assert analysis.summary is not None

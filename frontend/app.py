@@ -3,6 +3,7 @@ import requests
 import os
 import json
 from datetime import datetime
+from pathlib import Path
 
 # Configure page layout and style
 st.set_page_config(
@@ -19,7 +20,7 @@ st.markdown("""
     .stApp {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    
+
     /* Header card styling */
     .main-header {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -40,7 +41,7 @@ st.markdown("""
         font-size: 1rem;
         margin: 0;
     }
-    
+
     /* Priority badges */
     .priority-badge-high {
         background-color: #fef2f2;
@@ -85,6 +86,16 @@ st.markdown("""
 # Configuration & Backend URL
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
 
+MIME_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".webm": "audio/webm",
+    ".aac": "audio/aac",
+}
+
 def check_backend_health():
     try:
         res = requests.get(f"{BACKEND_URL}/api/health", timeout=3)
@@ -128,8 +139,40 @@ def upload_and_process_meeting(uploaded_file, title):
     except Exception as e:
         return None, f"Connection error: {str(e)}"
 
+def resolve_audio_path(meeting):
+    file_path_str = meeting.get("file_path") or ""
+    if file_path_str:
+        p = Path(file_path_str)
+        if not p.is_absolute():
+            p = Path(os.getcwd()) / p
+        if p.exists() and p.stat().st_size > 0:
+            return p
+
+    filename = meeting.get("filename") or ""
+    if filename:
+        p = Path(os.getcwd()) / "uploads" / filename
+        if p.exists() and p.stat().st_size > 0:
+            return p
+
+    ext = Path(filename).suffix.lower() if filename else ".mp3"
+    p = Path(os.getcwd()) / "uploads" / f"{meeting['id']}{ext}"
+    if p.exists() and p.stat().st_size > 0:
+        return p
+
+    return None
+
+# ====================================================
+# SESSION STATE & NAVIGATION ARCHITECTURE
+# ====================================================
+# 1. State Initialization
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "🏠 Home & Upload"
+
+if "selected_meeting_id" not in st.session_state:
+    st.session_state.selected_meeting_id = None
+
 # Sidebar setup
-st.sidebar.image("https://img.icons8.com/isometric-folders/100/microphone.png", width=64)
+st.sidebar.markdown("### 🎙️ AI Meeting Summarizer")
 st.sidebar.title("Navigation")
 
 is_online, health_info = check_backend_health()
@@ -139,11 +182,30 @@ else:
     st.sidebar.error(f"Backend Offline ({BACKEND_URL})")
     st.sidebar.warning("Ensure FastAPI backend is running with `uvicorn backend.main:app --reload`")
 
-nav_choice = st.sidebar.radio("Go to", ["🏠 Home & Upload", "📋 Recent Meetings", "🔍 Meeting Details"])
+PAGES = ["🏠 Home & Upload", "📋 Recent Meetings", "🔍 Meeting Details"]
 
-# Navigation logic & Session state
-if "selected_meeting_id" not in st.session_state:
-    st.session_state.selected_meeting_id = None
+current_nav_index = 0
+if st.session_state.current_page in PAGES:
+    current_nav_index = PAGES.index(st.session_state.current_page)
+
+selected_radio_page = st.sidebar.radio(
+    "Go to",
+    PAGES,
+    index=current_nav_index,
+    key="sidebar_navigation_radio"
+)
+
+# Sync sidebar radio selection with current_page state
+if selected_radio_page != st.session_state.current_page:
+    st.session_state.current_page = selected_radio_page
+    st.rerun()
+
+def open_meeting_details(meeting_id):
+    st.session_state.selected_meeting_id = meeting_id
+    st.session_state.current_page = "🔍 Meeting Details"
+    if "meeting_selectbox" in st.session_state:
+        del st.session_state["meeting_selectbox"]
+    st.rerun()
 
 # Header Banner
 st.markdown("""
@@ -156,35 +218,56 @@ st.markdown("""
 # ----------------------------------------------------
 # TAB 1: HOME & UPLOAD
 # ----------------------------------------------------
-if nav_choice == "🏠 Home & Upload":
+if st.session_state.current_page == "🏠 Home & Upload":
     col1, col2 = st.columns([3, 2])
-    
+
     with col1:
         st.subheader("📤 Upload Audio Recording")
         meeting_title = st.text_input("Meeting Title (Optional)", placeholder="e.g. Q3 Product Sprint Planning")
-        
+
         uploaded_file = st.file_uploader(
-            "Choose an audio file", 
+            "Choose an audio file",
             type=["mp3", "wav", "m4a", "flac", "ogg", "webm", "aac"],
             help="Supported formats: WAV, MP3, M4A, FLAC, OGG, WEBM, AAC (Max 50MB)"
         )
-        
+
         if uploaded_file is not None:
             st.info(f"📁 Selected file: **{uploaded_file.name}** ({uploaded_file.size / (1024*1024):.2f} MB)")
-            
+
             if st.button("🚀 Process & Summarize Meeting", type="primary", use_container_width=True):
                 if not is_online:
                     st.error("Cannot process audio because backend server is offline.")
                 else:
-                    with st.spinner("Processing audio with Whisper ASR and analyzing with LLM..."):
+                    progress_container = st.status("🔄 Processing Meeting Audio Pipeline...", expanded=True)
+
+                    with progress_container:
+                        st.write("📤 **STEP 1**: Uploading audio file... ⏳")
+                        import time
+                        time.sleep(0.5)
+                        st.write("✓ **STEP 1**: Uploading audio — Complete")
+
+                        st.write("🎙️ **STEP 2**: Transcribing with Whisper ASR... ⏳")
                         result, err = upload_and_process_meeting(uploaded_file, meeting_title)
+
                         if result:
-                            st.success("✅ Meeting processing completed successfully!")
-                            st.session_state.selected_meeting_id = result["id"]
-                            st.rerun()
+                            st.write("✓ **STEP 2**: Transcribing with Whisper — Complete")
+                            st.write("🧠 **STEP 3**: Analyzing transcript with LLM... ⏳")
+                            time.sleep(0.3)
+                            st.write("✓ **STEP 3**: Analyzing transcript with LLM — Complete")
+                            st.write("📋 **STEP 4**: Extracting decisions and action items... ⏳")
+                            time.sleep(0.3)
+                            st.write("✓ **STEP 4**: Extracting decisions and action items — Complete")
+                            st.write("💾 **STEP 5**: Saving meeting record... ⏳")
+                            time.sleep(0.2)
+                            st.write("✓ **STEP 5**: Saving meeting record — Complete")
+
+                            progress_container.update(label="✅ Meeting Processing Complete!", state="complete", expanded=False)
+                            st.success("✅ Meeting successfully processed!")
+                            open_meeting_details(result["id"])
                         else:
+                            progress_container.update(label="❌ Processing Failed", state="error", expanded=True)
                             st.error(f"❌ {err}")
-    
+
     with col2:
         st.subheader("📊 Recent Summaries")
         meetings = fetch_meetings()
@@ -197,25 +280,24 @@ if nav_choice == "🏠 Home & Upload":
                     st.caption(f"📅 {m['created_at'][:10]} | ⚙️ Status: `{m['status']}`")
                     if m.get("summary"):
                         st.write(m['summary'][:120] + "...")
-                    if st.button(f"View Details", key=f"btn_home_{m['id']}"):
-                        st.session_state.selected_meeting_id = m['id']
-                        st.rerun()
+                    if st.button("View Details", key=f"btn_home_{m['id']}", type="primary"):
+                        open_meeting_details(m['id'])
                     st.divider()
 
 # ----------------------------------------------------
 # TAB 2: RECENT MEETINGS
 # ----------------------------------------------------
-elif nav_choice == "📋 Recent Meetings":
+elif st.session_state.current_page == "📋 Recent Meetings":
     st.subheader("📚 All Processed Meetings")
     meetings = fetch_meetings()
-    
+
     if not meetings:
         st.info("No meetings found in database.")
     else:
         search_query = st.text_input("🔍 Search by title or filename", placeholder="Type keywords...")
         if search_query:
             meetings = [m for m in meetings if search_query.lower() in m['title'].lower() or search_query.lower() in m['filename'].lower()]
-        
+
         for m in meetings:
             col_a, col_b, col_c = st.columns([3, 2, 1])
             with col_a:
@@ -227,31 +309,49 @@ elif nav_choice == "📋 Recent Meetings":
                 st.caption(f"Uploaded: {m['created_at'].replace('T', ' ')[:16]}")
             with col_c:
                 if st.button("View Meeting", key=f"btn_list_{m['id']}", type="primary"):
-                    st.session_state.selected_meeting_id = m['id']
-                    st.rerun()
+                    open_meeting_details(m['id'])
             st.divider()
 
 # ----------------------------------------------------
 # TAB 3: MEETING DETAILS
 # ----------------------------------------------------
-elif nav_choice == "🔍 Meeting Details":
+elif st.session_state.current_page == "🔍 Meeting Details":
     meetings = fetch_meetings()
     if not meetings:
         st.warning("No meetings available to display.")
     else:
-        meeting_options = {f"{m['title']} ({m['created_at'][:10]})": m['id'] for m in meetings}
-        
-        # Select active meeting ID
-        default_index = 0
-        if st.session_state.selected_meeting_id:
-            for idx, (label, m_id) in enumerate(meeting_options.items()):
-                if m_id == st.session_state.selected_meeting_id:
-                    default_index = idx
-                    break
-        
-        selected_label = st.selectbox("Select Meeting", list(meeting_options.keys()), index=default_index)
-        current_meeting_id = meeting_options[selected_label]
-        
+        # Build label->id mapping and id->label reverse mapping
+        label_to_id = {}
+        id_to_label = {}
+        for m in meetings:
+            label = f"{m['title']} [{m['status']}] ({m['created_at'].replace('T', ' ')[:19]}) | {m['id'][:8]}"
+            label_to_id[label] = m['id']
+            id_to_label[m['id']] = label
+
+        labels_list = list(label_to_id.keys())
+
+        # Pre-set the selectbox session state to match selected_meeting_id
+        # This MUST happen before the st.selectbox() call because Streamlit
+        # ignores the `index` parameter when the key already exists in session_state.
+        target_meeting_id = st.session_state.selected_meeting_id
+        if target_meeting_id and target_meeting_id in id_to_label:
+            st.session_state["meeting_selectbox"] = id_to_label[target_meeting_id]
+        elif "meeting_selectbox" not in st.session_state or st.session_state["meeting_selectbox"] not in label_to_id:
+            st.session_state["meeting_selectbox"] = labels_list[0]
+
+        selected_label = st.selectbox(
+            "Select Meeting",
+            labels_list,
+            key="meeting_selectbox"
+        )
+
+        # Derive the actual meeting ID from the selected label
+        current_meeting_id = label_to_id[selected_label]
+
+        # Sync back: if user changed selectbox manually, update selected_meeting_id
+        if st.session_state.selected_meeting_id != current_meeting_id:
+            st.session_state.selected_meeting_id = current_meeting_id
+
         meeting = fetch_meeting_detail(current_meeting_id)
         if meeting:
             # Metadata banner
@@ -260,17 +360,49 @@ elif nav_choice == "🔍 Meeting Details":
             m_col1.metric("Filename", meeting['filename'])
             m_col2.metric("Processing Status", meeting['status'])
             m_col3.metric("Action Items", len(meeting.get('action_items', [])))
-            
+
             if meeting.get("error_message"):
                 st.error(f"Processing Error: {meeting['error_message']}")
 
-            # Audio Player if file exists
-            audio_path = meeting.get('file_path') or os.path.join("uploads", meeting['filename'])
-            if not os.path.exists(audio_path):
-                audio_path = os.path.join("uploads", meeting['filename'])
-            if os.path.exists(audio_path):
-                st.subheader("🔊 Audio Player")
-                st.audio(audio_path)
+            # Audio Player Section
+            st.subheader("🔊 Audio Player")
+
+            audio_bytes = None
+            audio_mime = "audio/mpeg"
+
+            audio_url = f"{BACKEND_URL}/api/meetings/{meeting['id']}/audio"
+            try:
+                res = requests.get(audio_url, timeout=5)
+                if res.status_code == 200 and len(res.content) > 0:
+                    audio_bytes = res.content
+                    c_type = res.headers.get("content-type", "")
+                    if "wav" in c_type:
+                        audio_mime = "audio/wav"
+                    elif "mp4" in c_type or "m4a" in c_type:
+                        audio_mime = "audio/mp4"
+                    elif "ogg" in c_type:
+                        audio_mime = "audio/ogg"
+                    elif "webm" in c_type:
+                        audio_mime = "audio/webm"
+                    else:
+                        audio_mime = "audio/mpeg"
+            except Exception:
+                pass
+
+            if not audio_bytes:
+                resolved_path = resolve_audio_path(meeting)
+                if resolved_path:
+                    try:
+                        audio_bytes = resolved_path.read_bytes()
+                        ext = resolved_path.suffix.lower()
+                        audio_mime = MIME_TYPES.get(ext, "audio/mpeg")
+                    except Exception:
+                        pass
+
+            if audio_bytes and len(audio_bytes) > 0:
+                st.audio(audio_bytes, format=audio_mime)
+            else:
+                st.warning("⚠️ Audio recording file is not available for playback.")
 
             st.divider()
 
@@ -285,7 +417,7 @@ elif nav_choice == "🔍 Meeting Details":
             with tab_summary:
                 st.subheader("Executive Summary")
                 st.info(meeting.get("summary") or "No summary available.")
-                
+
                 st.subheader("Key Discussion Points")
                 key_pts = meeting.get("key_points", [])
                 if key_pts:
@@ -303,7 +435,7 @@ elif nav_choice == "🔍 Meeting Details":
                     for idx, item in enumerate(actions, 1):
                         p_level = item.get('priority', 'Medium').lower()
                         badge_class = f"priority-badge-{p_level}" if p_level in ['high', 'medium', 'low'] else "priority-badge-medium"
-                        
+
                         st.markdown(f"""
                         <div class="content-card">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -311,7 +443,7 @@ elif nav_choice == "🔍 Meeting Details":
                                 <span class="{badge_class}">{item.get('priority', 'Medium').upper()} PRIORITY</span>
                             </div>
                             <div style="margin-top: 0.5rem; color:#64748b; font-size: 0.9rem;">
-                                👤 <strong>Owner:</strong> {item.get('owner', 'Unassigned')} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                                👤 <strong>Owner:</strong> {item.get('owner', 'Unassigned')} &nbsp;&nbsp;|&nbsp;&nbsp;
                                 📅 <strong>Deadline:</strong> {item.get('deadline', 'TBD')}
                             </div>
                         </div>
@@ -331,7 +463,7 @@ elif nav_choice == "🔍 Meeting Details":
                 transcript_text = meeting.get("transcript") or ""
                 if transcript_text:
                     st.text_area("Transcript Text", value=transcript_text, height=350)
-                    
+
                     st.download_button(
                         label="📥 Download Transcript (.txt)",
                         data=transcript_text,

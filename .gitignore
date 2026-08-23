@@ -18,6 +18,13 @@ ENV/
 *.sqlite
 uploads/*
 !uploads/.gitkeep
+test/*
+!test/.gitkeep
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.flac
 
 # Binaries & Large Executables
 ffmpeg.exe
