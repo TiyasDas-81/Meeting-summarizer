@@ -309,6 +309,14 @@ python scripts/test_ui_flow.py
 
 ---
 
+## 🎥 Demo Video
+
+[▶️ Watch the Meeting Summarizer Demo](https://drive.google.com/file/d/1p2GFRlJ3FDZqre682LmeEd9QciIc7tRm/view?usp=sharing)
+
+Watch the complete demo to see the end-to-end workflow from meeting audio upload and transcription to AI-generated summaries, decisions, and action items.
+
+---
+
 ## 🧠 LLM Prompt & Anti-Hallucination Design
 
 The summarization service uses structured prompt constraints to maintain data integrity:
